@@ -7,10 +7,10 @@
 #include <ostream>
 
 //Choose Starting microstate
-Eigen::Matrix2f get_starting_microstate()  //In reality, this would need to be Xf
+Eigen::MatrixXd get_starting_microstate()  //In reality, this would need to be Xf
 {
-	Eigen::Matrix2f starting_microstate<<-1, 1, 
-						1, 1;
+	//Initialize Matrix with all ones
+	Eigen::MatrixXd starting_microstate = Eigen::MatrixXd::Ones(10,10); 
 	return starting_microstate;
 }
 
@@ -18,32 +18,34 @@ Eigen::Matrix2f get_starting_microstate()  //In reality, this would need to be X
 //Pick random site
 class Site{
 	public:
-	{
-	int x_Index(int Nx)
-	int y_Index(int Ny)
-	}
+	
+	int x_Index(int Nx);
+	int y_Index(int Ny);
+	
 	private:
-}
+};
 
 //member functions for site class
 //get random x_index based off of Nx
-double Site::x_index(int Nx) {
-   	random_number=rand()%1;
-	return floor(Nx*random_number);
+int Site::x_Index(int Nx) {
+	double random_number=rand()%Nx;
+	return floor(random_number);
 }
 
 //get random y_index based off of Ny
-double Site::y_index(int Nx) {
-   	random_number=rand()%1;
-	return floor(Nx*random_number);
+int Site::y_Index(int Ny) {
+	double random_number=rand()%Ny;
+	return floor(random_number);
 }
 
 //Flip site on previous microstate
-Eigen::Matrix2f flip_site(Site::Site site, int Nx, int Ny, Eigen::Matrix2f previous_microstate) //change to MatrixXf
+Eigen::MatrixXd flip_site(int Nx, int Ny, Eigen::MatrixXd previous_microstate) //change to MatrixXf
 {
-	x_index=site.x_Index(Nx);
-	y_index=site.y_Index(Ny);
-	previous_microstate[x_index][y_index]=-previous_microstate[x_index][y_index];
+	Site site;
+	auto x_index=site.x_Index(Nx);
+	auto y_index=site.y_Index(Ny);
+	previous_microstate(x_index, y_index)=-previous_microstate(x_index, y_index);
+//	previous_microstate.coeffRef(5, 10)=-previous_microstate.coeffRef(5,10);
 	//	for (int i=0; i<previous_microstate.rows(); i++)
 //	{
 //		for (j=0; j<previous_microstate.cols(); j++)
@@ -53,8 +55,9 @@ Eigen::Matrix2f flip_site(Site::Site site, int Nx, int Ny, Eigen::Matrix2f previ
 //				if (j==y_index)
 //				{
 //					previous_microstate[i][j]=-previous_microstate[i][j]
+	return previous_microstate;
 }
-
+/*
 vector<double> eci(Eigen::Matrix2f microstate)
 {
 	//Not sure what to put here either... Somehow must calculate these. Linear reg?
@@ -113,14 +116,24 @@ Eigen::Matrix2f which_microstate(double delta_energy, double chemical_potential,
 
 
 //Get file with lattice and basis
+*/
 
-
-int main(int argc, char *argv[])
+int main()
 {
-	if (argc<2)
-	{
-		std::cout<<"You;ve made a terrible mistake. Enter text file."<<'\n';
-	        return 1;
-	}
-	std::string filename=argv[1];
+
+   	srand(time(NULL));
+	auto my_mat_of_ones=get_starting_microstate();
+	std::cout<<my_mat_of_ones;
+        auto flipped=flip_site(10, 10, my_mat_of_ones);
+	std::cout<<"\n\n"<<flipped;
+	auto flipped_2=flip_site(10,10,flipped);
+	std::cout<<"\n\n"<<flipped_2;
+	auto flipped_3=flip_site(10,10,flipped_2);
+	std::cout<<"\n\n"<<flipped_3;
+//	if (argc<2)
+//	{
+//		std::cout<<"You;ve made a terrible mistake. Enter text file."<<'\n';
+//	        return 1;
+//	}
+//	std::string filename=argv[1];
 }	
