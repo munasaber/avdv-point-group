@@ -5,45 +5,43 @@
 #include <sstream>
 #include <string>
 #include <ostream>
+#include <ctime>
+#include <cstdlib> 
+#include <time.h> 
+//#include "../matplotlib-cpp/matplotlibcpp.h"
+#define PREC 1E-7;
+//namespace plt =matplotlibcpp;
 
+
+float Vnn=40.0; //meV
+float Vp=0.0;//meV
+float V0=2*Vnn;//meV
 //Choose Starting microstate
-Eigen::MatrixXd get_starting_microstate()  //In reality, this would need to be Xf
+Eigen::MatrixXf get_starting_microstate()  //In reality, this would need to be Xf
 {
 	//Initialize Matrix with all ones
-	Eigen::MatrixXd starting_microstate = Eigen::MatrixXd::Ones(10,10); 
+	Eigen::MatrixXf starting_microstate = Eigen::MatrixXf::Ones(50,50); 
 	return starting_microstate;
 }
 
 
-//Pick random site
-class Site{
-	public:
-	
-	int x_Index(int Nx);
-	int y_Index(int Ny);
-	
-	private:
-};
-
 //member functions for site class
 //get random x_index based off of Nx
-int Site::x_Index(int Nx) {
-	double random_number=rand()%Nx;
+int x_Index(int Nx) {
+	float random_number=rand()%Nx;
 	return floor(random_number);
 }
 
 //get random y_index based off of Ny
-int Site::y_Index(int Ny) {
-	double random_number=rand()%Ny;
+int y_Index(int Ny) {
+	float random_number=rand()%Ny;
 	return floor(random_number);
 }
 
+
 //Flip site on previous microstate
-Eigen::MatrixXd flip_site(int Nx, int Ny, Eigen::MatrixXd previous_microstate) //change to MatrixXf
+Eigen::MatrixXf flip_site(int Nx, int Ny, Eigen::MatrixXf previous_microstate, int x_index, int y_index) //change to MatrixXf
 {
-	Site site;
-	auto x_index=site.x_Index(Nx);
-	auto y_index=site.y_Index(Ny);
 	previous_microstate(x_index, y_index)=-previous_microstate(x_index, y_index);
 //	previous_microstate.coeffRef(5, 10)=-previous_microstate.coeffRef(5,10);
 	//	for (int i=0; i<previous_microstate.rows(); i++)
@@ -57,83 +55,288 @@ Eigen::MatrixXd flip_site(int Nx, int Ny, Eigen::MatrixXd previous_microstate) /
 //					previous_microstate[i][j]=-previous_microstate[i][j]
 	return previous_microstate;
 }
-/*
-vector<double> eci(Eigen::Matrix2f microstate)
-{
-	//Not sure what to put here either... Somehow must calculate these. Linear reg?
+
+
+//get N
+float get_N(Eigen::MatrixXf microstate, int Nx, int Ny)
+{	
+	auto config=microstate;
+	auto act_config=config.array()+1.000;
+	return act_config.sum()/2;
 }
-
-
-//double Ei(Eigen::Matrix2f microstate, vector<double> ECI) //change to MatrixXf when done testing
-//{
-	// I don't know what to put here
-//}
-
-//double Ef(Eigen::Matrix2f microstate, vector<double> ECI)
-//{
-	// I don't know what to put here
-//}
-
+//Calculate total grand canonical energy
+float total_energy(int Nx, int Ny, Eigen::MatrixXf microstate, int x_index, int y_index, const float& mu, const float& T)
+{
+	float k=0.08617333262; //meV/K 
+	float chem_pot;
+	float energy;
+	for (int i=0; i<Nx; i++)
+	{
+		for (int j=0; j<Ny; j++)
+		{
+		//	float temp_eng=Vp*microstate(x_index, y_index)+Vnn*(microstate(x_index,y_index))*(((microstate((x_index+1)%Nx, y_index)+microstate(x_index, (y_index+1)%Ny))));
+			float temp_eng=Vp*microstate(i, j)+Vnn*(microstate(i,j))*(((microstate((i+1)%Nx, j)+microstate(i, (j+1)%Ny))));
+			energy+=temp_eng;
+		}
+			//float energy= Vp*microstate(x_index,y_index)+Vnn*(microstate(x_index, y_index))*(((microstate((x_index+1)%Nx), y_index))+microstate(x_index, (y_index+1)%Ny)+microstate((x_index-1)%Nx, y_index)+microstate(x_index, (y_index-1)%Ny));
+	}
+	chem_pot=get_N(microstate, Nx, Ny)*mu;
+	float tot_energy=(energy-chem_pot)/k/T;
+	return tot_energy;
+}
 
 //Calculate change in grand canonical energy
-double change_in_energy(Ei, Ef, chemical_potential, Ni, Nf)
+float change_in_energy(int Nx, int Ny, Eigen::MatrixXf current_microstate, int x_index, int y_index)
 {
-	//maybe remove Ei and Ef
-	//double delta_E=-2*L[i,j]*(Vp+Vn*L[i,j](L[i+1, j]+L[i, j+1]+ L[i-1, j]+L[i, j-1])) 
-	//somehow do this... remember modulo functions for edges/sides!!!!
+ 	Eigen::MatrixXf potential_site=current_microstate;
+	float energy_change=-2*potential_site(x_index, y_index)*(Vp+Vnn*(potential_site(x_index, y_index))*(((potential_site((x_index+1)%Nx), y_index))+potential_site(x_index, (y_index+1)%Ny)));
+        return energy_change;
 }
-//Accept new microstate
 
 
 //Conditionally accept new microstate
-Eigen::Matrix2f which_microstate(double delta_energy, double chemical_potential, int Ni, int Nf, Eigen::Matrix2f previous_microstate, Eigen::Matrix2f testing_microstate)
+bool accept_microstate(int Nx, int Ny, Eigen::MatrixXf previous_microstate, Eigen::MatrixXf testing_microstate, const float& chemical_potential, const float& T, int x_index, int y_index)
 {
-	double k= 
-	Eigen::Matrix2f ending_microstate;
-	double test_number=rand()%1;
-	if ((delta_energy-chemical_potential*(Nf-Ni))<0)
+//	std::cout<<"In accept microstate";
+	float delta_energy=change_in_energy(Nx, Ny, testing_microstate, x_index, y_index);
+	float k=0.08617333262; //meV/K 
+	Eigen::MatrixXf ending_microstate;
+	float test_number=rand()%1;
+	//int N;
+	auto N=get_N(testing_microstate, Nx, Ny);
+	if ((delta_energy-chemical_potential*(N))<0)
 	{
-		ending_microstate=testing_microstate;
+		return true;
 	}
-	else if (exp(-(1/(k*T))*(delta_energy-chemical_potential*(Nf-Ni))=>test_number
+	else if (exp(-(1/(k*T))*(delta_energy-chemical_potential*(N)))>=test_number)
 	{
-		ending_microstate=testing_microstate;
+		return true;
 	}
 	else{
-		ending_microstate=previous_microstate;
+		return false;
 	}
-	return ending_microstate;
+}
+
+//Get average thermoqualities using importance sampling
+float A(std::vector<float>& total_energy, int i)
+{
+	float sum_of_energies;
+	for (auto& n : total_energy)
+    		sum_of_energies += n;
+	auto average=(1/i)*sum_of_energies;
+	return average;
+}
+
+//Convergence Test
+bool converged(std::vector<float>& energy_container)
+{
+	int size=energy_container.size();
+	if (size>2)
+		{
+		if ((energy_container.back()-energy_container.at(size-2))< 0.0001)
+			return true;
+		}
+	else if (size<3)
+		return false;
 }
 
 
-//keep old microstate (may not need separate function)
+//get comp average
+float comp_average(std::vector<float>& comp_container) 
+{
+	//auto comp_array=microstate.array();
+	//auto frac_comp=(comp_array.sum()/Nx/Ny);
+	//return frac_comp;
+	float sum=0.0;
+	for (auto& n:comp_container)
+	{
+		sum+=n;
+	}
+	float av_sum=sum/comp_container.size();
+	return av_sum;
+}
 
 
-//Determine next microstate
+
+float LHS_Energy_mean(std::vector<float>& energy_container)
+{
+	float av_sum=0.0;
+	auto N=energy_container.size();
+	float average;
+	for (auto& n : energy_container)
+	{
+		//sum+=n;
+		av_sum+=pow(n,2.0)/N;
+	}
+	return av_sum;
+}
 
 
-//If at sides, do this!
+float RHS_Energy_mean(std::vector<float>& energy_container)
+{
+	float sum=0.0;
+	auto N=energy_container.size();
+	float average;
+	for (auto& n: energy_container)
+	{
+		sum+=n;
+	}
+	average=(pow(sum/N,2.0))/N;
+	return average;
+}
 
 
-//Get file with lattice and basis
-*/
+float Cp_average(std::vector<float>& energy_container, const float& T)
+{	
+	float k=0.08617333262; //meV/K 
+	auto average=(LHS_Energy_mean(energy_container)-RHS_Energy_mean(energy_container))/(k*pow(T,2.0));
+	return average;
+}
+
+//run MC and get thermo averages?
+std::vector<float> do_MC(const float& chemical_potential, const float& T)
+{
+	//std::cout<<"do_MC";
+	//put these in the arguments of the function when finished debugging
+	//float chemical_potential=50.0;
+	//float T=50.0;
+	//Site site;	
+	auto current_microstate=get_starting_microstate();
+	auto Nx=current_microstate.cols();
+	auto Ny=current_microstate.rows();
+	auto x_index=x_Index(50);
+	auto y_index=y_Index(50);
+	auto starting_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
+	
+	//auto starting_comp=comp(Nx,Ny, current_microstate);
+	std::vector<float> comp_container;
+	std::vector<float> new_energy_container;
+	new_energy_container.push_back(starting_energy);
+	//comp_container.push_back(starting_comp);
+	std::vector<float> average_thermodynamics;
+	std::vector<float> Cp_container;
+	while (!converged(new_energy_container))
+	{
+		//std::cout<<"In converged!";
+   	
+		auto x_index=x_Index(50);
+		auto y_index=y_Index(50);
+		float current_energy=total_energy(Nx,Ny,current_microstate, x_index, y_index, chemical_potential, T);
+		auto prospective_microstate=flip_site(Nx,Ny, current_microstate, x_index, y_index); 
+		//float energy_change=change_in_energy(Nx, Ny, current_microstate, x_index, y_index);
+		bool check=accept_microstate(Nx, Ny, current_microstate, prospective_microstate, chemical_potential, T, x_index, y_index);
+		if (check==true)
+		{
+			//std::cout<<"In if";
+			current_microstate=prospective_microstate;
+			float current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
+		        new_energy_container.push_back(current_energy);
+			//auto N=get_N(current_microstate, Nx, Ny);
+			//comp_container.push_back(N);
+
+  		       	//auto flipped=flip_site(50, 50, current_microstate, x_index, y_index);
+		}
+
+			//std::cout<<"\n\n"<<current_microstate;
+			auto N=get_N(current_microstate, Nx, Ny);
+			comp_container.push_back(N);
+	}
+        auto av_Cp=Cp_average(new_energy_container, T);
+	auto av_comp=comp_average(comp_container);
+	average_thermodynamics.push_back(av_Cp);
+	average_thermodynamics.push_back(av_comp);
+	return average_thermodynamics;
+	
+//	std::vector<float> whatever;
+//	return whatever;
+}
 
 int main()
 {
+	//std::cout<<"check!";
 
-   	srand(time(NULL));
-	auto my_mat_of_ones=get_starting_microstate();
-	std::cout<<my_mat_of_ones;
-        auto flipped=flip_site(10, 10, my_mat_of_ones);
-	std::cout<<"\n\n"<<flipped;
-	auto flipped_2=flip_site(10,10,flipped);
-	std::cout<<"\n\n"<<flipped_2;
-	auto flipped_3=flip_site(10,10,flipped_2);
-	std::cout<<"\n\n"<<flipped_3;
-//	if (argc<2)
+	srand((unsigned) time(0));		
+
+	int T_iterations=20;
+	int mu_iterations=20;
+	float max_T=1000;
+	float min_T=100;
+	float max_mu=0.5;
+	float min_mu=-0.5;	
+	std::ofstream outputfile;
+	outputfile.open("muvscomp.txt");
+	Eigen::MatrixXf Cp(T_iterations, mu_iterations);
+	Eigen::MatrixXf Energy(T_iterations, mu_iterations);
+	Eigen::MatrixXf Comp(T_iterations, mu_iterations);
+
+//	Eigen::ArrayXf Temporary_T[T_iterations-1];
+//	Eigen::ArrayXf Temporary_mu[mu_iterations-1];
+
+
+//        for (int n=0; n<T_iterations; n++)
 //	{
-//		std::cout<<"You;ve made a terrible mistake. Enter text file."<<'\n';
-//	        return 1;
+//		Temporary_T[n]=min_T+((max_T-min_T)/T_iterations*n);	
 //	}
-//	std::string filename=argv[1];
+ //       for (int m=0; m<mu_iterations; m++)
+//	{
+//		Temporary_mu[m]=min_mu+((max_mu-min_mu)/mu_iterations*m);	
+//	}
+//	Eigen::MatrixXf mu_comp(T_iterator-1, mu_iterator-1);
+//	Eigen::MatrixXf mu(T_iterator-1, mu_iterator-1);
+	Eigen::VectorXf my_comp=Comp.row(1);
+	Eigen::ArrayXf Temporary_T=Eigen::ArrayXf::LinSpaced(T_iterations, min_T, max_T);
+	Eigen::ArrayXf Temporary_mu=Eigen::ArrayXf::LinSpaced(mu_iterations, min_mu, max_mu);
+	//Vector2f plot1;
+	//Vector2f plot2;
+	//Vector2f plot3;
+	
+	for (int i=0; i<T_iterations; i++)
+//	for (auto& T:Temporary_T)
+	{
+	float T=Temporary_T(i);
+		for (int j=0; j<mu_iterations; j++)
+		{
+	//		std::cout<<"In loop";
+		float mu=Temporary_mu(j);
+
+		//std::vector<float> MC_results=do_MC(mu, T, x_index, y_index);
+		std::vector<float> MC_results=do_MC(mu, T);
+		
+		Comp(i,j)=MC_results[0];
+		Cp(i,j)=MC_results[1];
+		}
+        my_comp=Comp.row(i);
+	for (int l=0; l<mu_iterations; l++)
+	{
+		my_comp(l)=my_comp(l)/50/50;
+		Comp(i,l)=my_comp(l);
+	}
+	auto comp_forT=Comp.transpose();		
+//	Eigen::VectorXf TotalComp=Comp.row(mu_iterations);
+//	Eigen::VectorXf TotalT=Temporary_T.row(mu_iterations);
+	for (int m=0; m<mu_iterations; m++)
+	{
+//		std::cout<<Cp(m,i)<<" ";
+		//TotalComp(m)<<Comp(m,i);
+		//Total_T(m)<<Temporary_T(m);
+		std::cout<<Comp(m,i)<< " ";
+		std::cout<<Temporary_T(m)<<'\n';
+	}
+//	for
+
+	//outputfile.close();
+	//std::cout<<my_comp<<'\n';
+	//std::cout<<Temporary_mu<<'\n';
+	//gather data for constant T, vary mu vs comp (hopefully...)
+	//auto mu_comp=Comp.row(i);
+	//auto mu=Temporary_mu;
+	//Eigen::MatrixXf plot1=Eigen::MatrixXf(i,2);
+	//plot1(i, 0)=Comp.row(i);
+	//plot1(i, 1)=chem_pots;
+	//outputfile<<plot1;
+	//outputfile.close();
+
+
+
+	}
 }	
