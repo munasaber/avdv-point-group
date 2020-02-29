@@ -9,6 +9,7 @@
 #include <ctime>
 #include <cstdlib> 
 #include <time.h> 
+#include <math.h>
 //#include "../matplotlib-cpp/matplotlibcpp.h"
 #define PREC 1E-7;
 //namespace plt =matplotlibcpp;
@@ -16,12 +17,12 @@
 
 float Vnn=40.0; //meV
 float Vp=0.0;//meV
-float V0=2*Vnn;//meV
+float V0=-2*Vnn;//meV //negative or positive?
 //Choose Starting microstate
 Eigen::MatrixXf get_starting_microstate()  //In reality, this would need to be Xf
 {
 	//Initialize Matrix with all ones
-	Eigen::MatrixXf starting_microstate = (-1)*Eigen::MatrixXf::Ones(30,30); 
+	Eigen::MatrixXf starting_microstate = (-1)*Eigen::MatrixXf::Ones(40,40); 
 	return starting_microstate;
 }
 
@@ -40,6 +41,12 @@ int y_Index(int Ny) {
 }
 
 
+int make_index(int index, int N)
+{
+	int make_index=(N+(index%N))%N;
+	return make_index;
+}
+
 float random_num()
 {
 	std::random_device my_rand;
@@ -48,19 +55,9 @@ float random_num()
 	return dis(gen);	
 }
 //Flip site on previous microstate
-Eigen::MatrixXf flip_site(int Nx, int Ny, Eigen::MatrixXf previous_microstate, int x_index, int y_index) //change to MatrixXf
+Eigen::MatrixXf flip_site(int Nx, int Ny, Eigen::MatrixXf& previous_microstate, int& x_index, int& y_index) //change to MatrixXf
 {
 	previous_microstate(x_index, y_index)=-previous_microstate(x_index, y_index);
-//	previous_microstate.coeffRef(5, 10)=-previous_microstate.coeffRef(5,10);
-	//	for (int i=0; i<previous_microstate.rows(); i++)
-//	{
-//		for (j=0; j<previous_microstate.cols(); j++)
-//		{
-//			if (i==x_index) //might be remaking index with every 
-//			{
-//				if (j==y_index)
-//				{
-//					previous_microstate[i][j]=-previous_microstate[i][j]
 	return previous_microstate;
 }
 
@@ -73,7 +70,7 @@ float get_N(Eigen::MatrixXf microstate, int Nx, int Ny)
 	return act_config.sum()/2;
 }
 //Calculate total grand canonical energy
-float total_energy(int Nx, int Ny, Eigen::MatrixXf microstate, int x_index, int y_index, const float& mu, const float& T)
+float total_energy(int Nx, int Ny, Eigen::MatrixXf& microstate, int x_index, int y_index, const float& mu, const float& T)
 {
 	float k=0.08617333262; //meV/K 
 	float chem_pot;
@@ -95,18 +92,27 @@ float total_energy(int Nx, int Ny, Eigen::MatrixXf microstate, int x_index, int 
 }
 
 //Calculate change in grand canonical energy
-float change_in_energy(int Nx, int Ny, Eigen::MatrixXf current_microstate, int x_index, int y_index)
+float change_in_energy(int Nx, int Ny, Eigen::MatrixXf& current_microstate, int& x_index, int& y_index)
 {
- 	Eigen::MatrixXf potential_site=current_microstate;
-	float energy_change=-2*potential_site(x_index, y_index)*(Vp+Vnn*(potential_site(x_index, y_index))*(((potential_site((x_index+1)%Nx), y_index))+potential_site(x_index, (y_index+1)%Ny)));
-        return energy_change;
+ 	int index_xf =make_index(x_index+1, Nx);
+	int index_xb =make_index(x_index-1, Nx);
+	int index_yf =make_index(y_index+1, Ny);
+	int index_yb =make_index(y_index-1, Ny);
+
+	Eigen::MatrixXf potential_site=current_microstate;
+	//might have wrong equation
+	//float energy_change=-2*potential_site(x_index, y_index)*(Vp+Vnn*(((potential_site((x_index+1)%Nx), y_index))+potential_site((x_index-1)%Nx, y_index)+potential_site(x_index, (y_index+1)%Ny)+potential_site(x_index, (y_index-1)%Ny)));
+	
+	float energy_change=-2*potential_site(x_index, y_index)*(Vp+Vnn*((potential_site(index_xf, y_index))+potential_site(index_xb, y_index)+potential_site(x_index, index_yf)+potential_site(x_index, index_yb)));
+	//float energy_change=-2*potential_site(x_index, y_index)*(Vp+Vnn*(((potential_site((x_index+1)%Nx), y_index))+potential_site(x_index, (y_index+1)%Ny)));
+	return energy_change;
 }
 
 
 //Conditionally accept new microstate
-bool accept_microstate(int Nx, int Ny, Eigen::MatrixXf previous_microstate, Eigen::MatrixXf testing_microstate, const float& chemical_potential, const float& T, int x_index, int y_index)
+bool accept_microstate(int Nx, int Ny, Eigen::MatrixXf& previous_microstate, Eigen::MatrixXf& testing_microstate, const float& chemical_potential, const float& T, int& x_index, int& y_index)
 {
-//	std::cout<<"In accept microstate";
+	
 	float delta_energy=change_in_energy(Nx, Ny, testing_microstate, x_index, y_index);
 	float k=0.08617333262; //meV/K 
 	Eigen::MatrixXf ending_microstate;
@@ -114,12 +120,12 @@ bool accept_microstate(int Nx, int Ny, Eigen::MatrixXf previous_microstate, Eige
 	//int N;
 	auto N=get_N(testing_microstate, Nx, Ny);
 	//if ((delta_energy-chemical_potential*(N))<0)
-	if ((delta_energy-((-1)*testing_microstate(x_index, y_index)*chemical_potential))<0)
+	if ((delta_energy-((-1.0)*testing_microstate(x_index, y_index)*chemical_potential))<0)
 	{
 		return true;
 	}
 //	else if (std::exp(-(1/(k*T))*(delta_energy-chemical_potential*(testing_microstate(x_index,y_index))))>=test_number)  //may have to multiply by avg comp rather than testmicrostate(x,y)
-	else if (std::exp(-(1/(k*T))*(delta_energy-chemical_potential*get_N(testing_microstate, x_index, y_index)))>test_number)  //may have to multiply by avg comp rather than testmicrostate(x,y)
+	else if (std::exp(-(1/(k*T))*(delta_energy-chemical_potential*testing_microstate(x_index,y_index)))>test_number)  //may have to multiply by avg comp rather than testmicrostate(x,y)
 		//else if (std::exp(-(1/(k*T))*(delta_energy-chemical_potential*(testing_microstate(x_index,y_index))))>=random_num())
 	{
 		return true;
@@ -211,7 +217,7 @@ float Cp_average(std::vector<float>& energy_container, const float& T)
 //run MC and get thermo averages?
 std::vector<float> do_MC(const float& chemical_potential, const float& T)
 {
-	int max_pass=4000;
+	int max_pass=1000;
 	auto current_microstate=get_starting_microstate();
 	auto Nx=current_microstate.cols();
 	auto Ny=current_microstate.rows();
@@ -228,13 +234,13 @@ std::vector<float> do_MC(const float& chemical_potential, const float& T)
 	new_energy_container.push_back(starting_energy);
 	std::vector<float> average_thermodynamics;
 	std::vector<float> Cp_container;
+	float current_energy;
+	float energy;
 	int i=0;
 	//while (!converged(new_energy_container))
 	while(i<max_pass)
 	{
 		
-		
-		//std::cout<<"In converged!";
    	        x_index=int(random_num()*Nx);
 		y_index=int(random_num()*Ny);
 		//auto x_index=x_Index(50);
@@ -243,32 +249,34 @@ std::vector<float> do_MC(const float& chemical_potential, const float& T)
 		auto prospective_microstate=flip_site(Nx,Ny, current_microstate, x_index, y_index); 
 		//float energy_change=change_in_energy(Nx, Ny, current_microstate, x_index, y_index);
 		bool check=accept_microstate(Nx, Ny, current_microstate, prospective_microstate, chemical_potential, T, x_index, y_index);
-		if (i<100)
+		if (i<30)
 		{
 			if (check==true)
 			{	
 			current_microstate=prospective_microstate;
-			float current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
+			//current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
+			current_energy=change_in_energy(Nx, Ny, current_microstate, x_index, y_index)-(-1.0*current_microstate(x_index, y_index)*chemical_potential); 
+			energy=energy+current_energy;
 			i++;
 			}
 			
 		}
-		if (check==true)
-		{
+		if (i>=30)
+		{	
+			if (check==true)
+			{
 			//std::cout<<"In if";
 			current_microstate=prospective_microstate;
-			float current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
-		        new_energy_container.push_back(current_energy);
-			//auto N=get_N(current_microstate, Nx, Ny);
-			//comp_container.push_back(N);
-
-  		       	//auto flipped=flip_site(50, 50, current_microstate, x_index, y_index);
+			//current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
+			current_energy=change_in_energy(Nx, Ny, current_microstate, x_index, y_index)-(-1.0*current_microstate(x_index, y_index)*chemical_potential); 
+			energy=energy+current_energy;
+		        new_energy_container.push_back(energy);
 			auto N=get_N(current_microstate, Nx, Ny);
 			comp_container.push_back(N);
 	                i++;
+			}
 		}
-
-			//std::cout<<"\n\n"<<current_microstate;
+	//		std::cout<<"\n\n"<<current_microstate;
 	}
         auto av_Cp=Cp_average(new_energy_container, T);
 	auto av_comp=comp_average(comp_container);
@@ -314,7 +322,7 @@ int main()
 //	Eigen::MatrixXf mu_comp(T_iterator-1, mu_iterator-1);
 //	Eigen::MatrixXf mu(T_iterator-1, mu_iterator-1);
 	Eigen::VectorXf my_comp=Comp.row(1);
-	Eigen::ArrayXf Temporary_T=Eigen::ArrayXf::LinSpaced(T_iterations, min_T, max_T);
+	Eigen::ArrayXf Temporary_T=Eigen::ArrayXf::LinSpaced(T_iterations, max_T, min_T);
 	Eigen::ArrayXf Temporary_mu=Eigen::ArrayXf::LinSpaced(mu_iterations, min_mu, max_mu);
 	//Vector2f plot1;
 	//Vector2f plot2;
@@ -338,7 +346,7 @@ int main()
         my_comp=Comp.row(i);
 	for (int l=0; l<mu_iterations; l++)
 	{
-		my_comp(l)=my_comp(l)/30/30;
+		my_comp(l)=my_comp(l)/40/40;
 		Comp(i,l)=my_comp(l);
 	}
 
