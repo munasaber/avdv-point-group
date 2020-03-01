@@ -120,11 +120,11 @@ bool accept_microstate(int Nx, int Ny, Eigen::MatrixXf& previous_microstate, Eig
 	//int N;
 	auto N=get_N(testing_microstate, Nx, Ny);
 	//if ((delta_energy-chemical_potential*(N))<0)
-	if ((delta_energy-((-1.0)*testing_microstate(x_index, y_index)*chemical_potential))<0)
+	if ((delta_energy-((1.0)*testing_microstate(x_index, y_index)*chemical_potential))<0)
 	{
 		return true;
 	}
-	else if (std::exp((delta_energy-(-1.0)*chemical_potential*testing_microstate(x_index,y_index))*(-1.0/(k*T)))>=test_number)  //may have to multiply by avg comp rather than testmicrostate(x,y)
+	else if (std::exp((delta_energy-(1.0)*chemical_potential*testing_microstate(x_index,y_index))*(-1.0/(k*T)))>=test_number)  //may have to multiply by avg comp rather than testmicrostate(x,y)
 	{
 		return true;
 	}
