@@ -22,7 +22,7 @@ double V0=-2.0*Vnn;//meV //negative or positive?
 Eigen::MatrixXd get_starting_microstate()  //In reality, this would need to be Xf
 {
 	//Initialize Matrix with all ones
-	Eigen::MatrixXd starting_microstate = (-1.0)*Eigen::MatrixXd::Ones(60, 60); 
+	Eigen::MatrixXd starting_microstate = (-1.0)*Eigen::MatrixXd::Ones(80, 80); 
 	return starting_microstate;
 }
 
@@ -216,7 +216,7 @@ double Cp_average(std::vector<double>& energy_container, const double& T)
 //run MC and get thermo averages?
 std::vector<double> do_MC(const double& chemical_potential, const double& T, Eigen::MatrixXd *microstate)
 {
-	int max_pass=5;
+	int max_pass=2000;
 	//auto current_microstate=get_starting_microstate();
 	Eigen::MatrixXd& current_microstate=*microstate;
 	auto Nx=current_microstate.cols();
@@ -239,7 +239,7 @@ std::vector<double> do_MC(const double& chemical_potential, const double& T, Eig
 	//while(i<max_pass)
 	for ( int i=0; i<max_pass; i++)
 	{
-		for (int loop=0; loop<5; loop++)
+		for (int loop=0; loop<5000; loop++)
 		{
 			
 			x_index=int(dis(gen)*Nx)%Nx;
@@ -301,6 +301,12 @@ std::vector<double> do_MC(const double& chemical_potential, const double& T, Eig
 //	return whatever;
 }
 
+std::string to_string(int i){
+   std::stringstream s;
+   s << i;
+   return s.str();
+}
+
 int main()
 {
 	//std::cout<<"check!";
@@ -359,7 +365,7 @@ int main()
         my_comp=Comp.col(i).transpose();
 	for (int l=0; l<T_iterations; l++)
 	{
-		my_comp(l)=my_comp(l)/60/60;
+		my_comp(l)=my_comp(l)/80/80;
 		Comp(l,i)=my_comp(l);
 	}
 
@@ -389,18 +395,19 @@ int main()
 
 
 	}
-	std::string front("muvscomp_test");
+	std::string front("muvscomp_");
 	std::string base(".txt");
-	for (int i=0; i<mu_iterations; i++)	
+	for (int i=0; i<T_iterations; i++)	
 	{
 		
-		outputfile.open(front);
-		for (int k=0; k<T_iterations;k++)
+		outputfile.open(front+to_string(floor(Temporary_T(i)))+base);
+		for (int k=0; k<mu_iterations;k++)
 	
 		{
 			outputfile<<Comp(i, k)<<" ";
 			outputfile<<Temporary_mu(k)<<'\n';
 		}
+		outputfile.close();
 		//std::cout<<'\n';
 	}
 
