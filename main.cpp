@@ -22,7 +22,7 @@ double V0=-2.0*Vnn;//meV //negative or positive?
 Eigen::MatrixXd get_starting_microstate()  //In reality, this would need to be Xf
 {
 	//Initialize Matrix with all ones
-	Eigen::MatrixXd starting_microstate = (-1)*Eigen::MatrixXd::Ones(60,60); 
+	Eigen::MatrixXd starting_microstate = (-1.0)*Eigen::MatrixXd::Ones(60, 60); 
 	return starting_microstate;
 }
 
@@ -66,7 +66,7 @@ Eigen::MatrixXd flip_site(int Nx, int Ny, Eigen::MatrixXd& previous_microstate, 
 double get_N(Eigen::MatrixXd microstate, int Nx, int Ny)
 {	
 	auto config=microstate;
-	auto act_config=config.array()+1.000;
+	auto act_config=config.array()+1.0;
 	return act_config.sum()/2.0;
 }
 //Calculate total grand canonical energy
@@ -120,11 +120,11 @@ bool accept_microstate(int Nx, int Ny, Eigen::MatrixXd& microstate, const double
 	//int N;
 	//auto N=get_N(testing_microstate, Nx, Ny);
 	//if ((delta_energy-chemical_potential*(N))<0)
-	if ((delta_energy-((1.0)*microstate(x_index, y_index)*chemical_potential))<0)
+	if ((delta_energy-((-1.0)*microstate(x_index, y_index)*chemical_potential))<0)
 	{
 		return true;
 	}
-	else if (std::exp((delta_energy-(1.0)*chemical_potential*microstate(x_index,y_index))*(-1.0/(k*T)))>=test_number)  //may have to multiply by avg comp rather than testmicrostate(x,y)
+	else if (std::exp((delta_energy-(-1.0)*chemical_potential*microstate(x_index,y_index))*(-1.0/(k*T)))>=test_number)  //may have to multiply by avg comp rather than testmicrostate(x,y)
 	{
 		return true;
 	}
@@ -146,14 +146,14 @@ double A(std::vector<double>& total_energy, int i)
 //Convergence Test
 bool converged(std::vector<double>& energy_container)
 {
-	std::cout<<"not converged";
+//	std::cout<<"not converged";
 	int size=energy_container.size();
-	if (size>2)
+	if (size>=4)
 		{
-		if ((energy_container.back()-energy_container.at(size-2))< 0.0001)
+		if ((energy_container.back()-energy_container.at(size-2))< 0.01)
 			return true;
 		}
-	else if (size<3)
+	else if (size<4)
 		return false;
 	else 
 		return false;
@@ -216,7 +216,7 @@ double Cp_average(std::vector<double>& energy_container, const double& T)
 //run MC and get thermo averages?
 std::vector<double> do_MC(const double& chemical_potential, const double& T, Eigen::MatrixXd *microstate)
 {
-	int max_pass=3000;
+	int max_pass=5;
 	//auto current_microstate=get_starting_microstate();
 	Eigen::MatrixXd& current_microstate=*microstate;
 	auto Nx=current_microstate.cols();
@@ -236,49 +236,60 @@ std::vector<double> do_MC(const double& chemical_potential, const double& T, Eig
 	std::vector<double> Cp_container;
 	int i=0;
 	//while (!converged(new_energy_container))
-	while(i<max_pass)
+	//while(i<max_pass)
+	for ( int i=0; i<max_pass; i++)
 	{
-		
-   	        
-		
-		x_index=int(dis(gen)*Nx)%Nx;
-		y_index=int(dis(gen)*Ny)%Ny;
-		//auto x_index=x_Index(50);
-		//auto y_index=y_Index(50);
-		//auto prospective_microstate=flip_site(Nx,Ny, current_microstate, x_index, y_index); 
-		//auto site=prospective_microstate(x_index, y_index);
-		//auto prospective_microstate=(-1)*current_microstate(x_index, y_index);
-		//double energy_change=change_in_energy(Nx, Ny, current_microstate, x_index, y_index);
-		auto site=-1*current_microstate(x_index,y_index);
-		bool check=accept_microstate(Nx, Ny, current_microstate, chemical_potential, T, x_index, y_index, dis, gen);
-		if (i<500)
+		for (int loop=0; loop<5; loop++)
 		{
-			if (check==true)
-			{	
-			//current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
-			current_energy+=change_in_energy(Nx, Ny, current_microstate, x_index, y_index)-(-1.0*current_microstate(x_index, y_index)*chemical_potential); 
-			comp+=site;
-			current_microstate(x_index,y_index)=site;
-			i++;
-			}
 			
-		}
-		if (i>=500)
-		{	
+			x_index=int(dis(gen)*Nx)%Nx;
+			y_index=int(dis(gen)*Ny)%Ny;
+			double site=(-1.0)*current_microstate(x_index,y_index);
+			bool check=accept_microstate(Nx, Ny, current_microstate, chemical_potential, T, x_index, y_index, dis, gen);
 			if (check==true)
 			{
-			//std::cout<<"In if";
-			//current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
-			current_energy+=change_in_energy(Nx, Ny, current_microstate, x_index, y_index)-(-1.0*current_microstate(x_index, y_index)*chemical_potential); 
-		        new_energy_container.push_back(current_energy);
-			current_microstate(x_index, y_index)=site;
-			comp+=site;
-			comp_container.push_back(comp);
-	                i++;
+				current_energy+=change_in_energy(Nx, Ny, current_microstate, x_index, y_index)-(-1.0*current_microstate(x_index, y_index)*chemical_potential); 
+				comp+=site;
+				current_microstate(x_index,y_index)=site; 
+			//	i++;
 			}
 		}
-	//		std::cout<<"\n\n"<<current_microstate;
+		
+		if (i>=3)
+		{
+			new_energy_container.push_back(current_energy);
+                        //current_microstate(x_index, y_index)=site;
+			comp_container.push_back(comp);
+		}
 	}
+	//		if (i<500)
+//		{
+//			if (check==true)
+//			{	
+			//current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
+//			current_energy+=change_in_energy(Nx, Ny, current_microstate, x_index, y_index)-(-1.0*current_microstate(x_index, y_index)*chemical_potential); 
+//			comp+=site;
+//			current_microstate(x_index,y_index)=site;
+//			i++;
+//			}
+//			
+//		}
+//		if (i>=500)
+//		{	
+//			if (check==true)
+//			{
+			//std::cout<<"In if";
+			//current_energy=total_energy(Nx, Ny, current_microstate, x_index, y_index, chemical_potential, T);
+//			current_energy+=change_in_energy(Nx, Ny, current_microstate, x_index, y_index)-(-1.0*current_microstate(x_index, y_index)*chemical_potential); 
+//		        new_energy_container.push_back(current_energy);
+//			current_microstate(x_index, y_index)=site;
+//			comp+=site;
+//			comp_container.push_back(comp);
+//	                i++;
+//			}
+		//}
+	//		std::cout<<"\n\n"<<current_microstate;
+	
         auto av_Cp=Cp_average(new_energy_container, T);
 	auto av_comp=comp_average(comp_container);
 	average_thermodynamics.push_back(av_comp);
@@ -302,7 +313,7 @@ int main()
 	double min_T=0;
 	double max_mu=500;
 	double min_mu=-500;	
-	//std::ofstream outputfile;
+	std::ofstream outputfile;
 	//outputfile.open("muvscomp.txt");
 	Eigen::MatrixXd Cp(T_iterations, mu_iterations);
 	Eigen::MatrixXd Energy(T_iterations, mu_iterations);
@@ -342,7 +353,7 @@ int main()
 			std::vector<double> MC_results=do_MC(mu, T, &microstate);
 		
 			Comp(j,i)=MC_results[0];
-			Cp(i,j)=MC_results[1];
+			Cp(j,i)=MC_results[1];
 
 		}
         my_comp=Comp.col(i).transpose();
@@ -378,14 +389,19 @@ int main()
 
 
 	}
-
+	std::string front("muvscomp_test");
+	std::string base(".txt");
 	for (int i=0; i<mu_iterations; i++)	
 	{
+		
+		outputfile.open(front);
 		for (int k=0; k<T_iterations;k++)
 	
 		{
-			std::cout<<Comp(k, i)<<" ";
-			std::cout<<Temporary_mu(k)<<'\n';
+			outputfile<<Comp(i, k)<<" ";
+			outputfile<<Temporary_mu(k)<<'\n';
 		}
+		//std::cout<<'\n';
 	}
+
 }	
