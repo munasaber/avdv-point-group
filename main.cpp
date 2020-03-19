@@ -22,7 +22,7 @@ double V0=-2.0*Vnn;//meV //negative or positive?
 Eigen::MatrixXd get_starting_microstate()  //In reality, this would need to be Xf
 {
 	//Initialize Matrix with all ones
-	Eigen::MatrixXd starting_microstate = (-1.0)*Eigen::MatrixXd::Ones(80, 80); 
+	Eigen::MatrixXd starting_microstate = (-1.0)*Eigen::MatrixXd::Ones(20, 20); 
 	return starting_microstate;
 }
 
@@ -201,7 +201,8 @@ double RHS_Energy_mean(std::vector<double>& energy_container)
 	{
 		sum+=n;
 	}
-	average=(pow(sum/N,2.0))/N;
+	//average=(pow(sum/N,2.0))/N;  //Do I have to do the extra division by N?	
+	average=(pow(sum/N,2.0));  //Do I have to do the extra division by N?
 	return average;
 }
 
@@ -216,7 +217,7 @@ double Cp_average(std::vector<double>& energy_container, const double& T)
 //run MC and get thermo averages?
 std::vector<double> do_MC(const double& chemical_potential, const double& T, Eigen::MatrixXd *microstate)
 {
-	int max_pass=2000;
+	int max_pass=1000;
 	//auto current_microstate=get_starting_microstate();
 	Eigen::MatrixXd& current_microstate=*microstate;
 	auto Nx=current_microstate.cols();
@@ -239,7 +240,7 @@ std::vector<double> do_MC(const double& chemical_potential, const double& T, Eig
 	//while(i<max_pass)
 	for ( int i=0; i<max_pass; i++)
 	{
-		for (int loop=0; loop<5000; loop++)
+		for (int loop=0; loop<1000; loop++)
 		{
 			
 			x_index=int(dis(gen)*Nx)%Nx;
@@ -255,7 +256,7 @@ std::vector<double> do_MC(const double& chemical_potential, const double& T, Eig
 			}
 		}
 		
-		if (i>=3)
+		if (i>=300)
 		{
 			new_energy_container.push_back(current_energy);
                         //current_microstate(x_index, y_index)=site;
@@ -301,10 +302,11 @@ std::vector<double> do_MC(const double& chemical_potential, const double& T, Eig
 //	return whatever;
 }
 
-std::string to_string(int i){
-   std::stringstream s;
-   s << i;
-   return s.str();
+std::string to_string(int i)
+{
+   std::stringstream stream;
+   stream << i;
+   return stream.str();
 }
 
 int main()
@@ -317,9 +319,11 @@ int main()
 	int mu_iterations=30;
 	double max_T=3000;
 	double min_T=0;
-	double max_mu=500;
-	double min_mu=-500;	
-	std::ofstream outputfile;
+	double max_mu=600;
+	double min_mu=-600;	
+	std::ofstream cpoutputfile;
+	std::ofstream Toutputfile;
+	std::ofstream muoutputfile;
 	//outputfile.open("muvscomp.txt");
 	Eigen::MatrixXd Cp(T_iterations, mu_iterations);
 	Eigen::MatrixXd Energy(T_iterations, mu_iterations);
@@ -345,11 +349,15 @@ int main()
 	//Vector2d plot1;
 	//Vector2d plot2;
 	//Vector2d plot3;
+	std::string cpfront("CpvsT_");
+	std::string cpbase(".txt");
 	
 	for (int i=0; i<mu_iterations; i++)
 //	for (auto& T:Temporary_T)
 	{
 		double mu=Temporary_mu(i);
+		cpoutputfile.open(cpfront+to_string(floor(Temporary_mu(i)))+cpbase);
+	        cpoutputfile<<"Cv"<<" "<<"T"<<'\n';
 		for (int j=0; j<T_iterations; j++)
 		{
 	//		std::cout<<"In loop";
@@ -360,16 +368,29 @@ int main()
 		
 			Comp(j,i)=MC_results[0];
 			Cp(j,i)=MC_results[1];
+			cpoutputfile<<Cp(j,i)<<" "<<T<<'\n';
 
 		}
         my_comp=Comp.col(i).transpose();
 	for (int l=0; l<T_iterations; l++)
 	{
-		my_comp(l)=my_comp(l)/80/80;
+		my_comp(l)=my_comp(l)/20/20;
 		Comp(l,i)=my_comp(l);
 	}
 
-	auto comp_forT=Comp.transpose();		
+	auto comp_forT=Comp.transpose();
+
+
+	std::string Tfront("Tvscomp_");
+	std::string Tbase(".txt");
+	Toutputfile.open(Tfront+to_string(floor(Temporary_mu(i)))+Tbase);
+	Toutputfile<<"x"<<" "<<"T"<<'\n';
+	for (int l=0; l<T_iterations; l++)
+	{
+		Toutputfile<<Comp(i, l)<<" ";
+		Toutputfile<<Temporary_T(l)<<'\n';
+	}
+	Toutputfile.close();
 //	Eigen::VectorXd TotalComp=Comp.row(mu_iterations);
 //	Eigen::VectorXd TotalT=Temporary_T.row(mu_iterations);
 	//for (int m=0; m<mu_iterations; m++)
@@ -393,21 +414,22 @@ int main()
 	//outputfile.close();
 
 
-
+        cpoutputfile.close();
 	}
+
 	std::string front("muvscomp_");
 	std::string base(".txt");
 	for (int i=0; i<T_iterations; i++)	
-	{
-		
-		outputfile.open(front+to_string(floor(Temporary_T(i)))+base);
+	{ 
+	muoutputfile<<"x"<<" "<<"mu"<<'\n';	
+		muoutputfile.open(front+to_string(floor(Temporary_T(i)))+base);
 		for (int k=0; k<mu_iterations;k++)
 	
 		{
-			outputfile<<Comp(i, k)<<" ";
-			outputfile<<Temporary_mu(k)<<'\n';
+			muoutputfile<<Comp(i, k)<<" ";
+			muoutputfile<<Temporary_mu(k)<<'\n';
 		}
-		outputfile.close();
+		muoutputfile.close();
 		//std::cout<<'\n';
 	}
 
